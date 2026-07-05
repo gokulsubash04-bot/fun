@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Convert your real-world images into stunning digital paintings using advanced OpenCV computer vision algorithms. Free, instant, and high-quality stylization.">
+    <title>Artify CV - Image to Painting Converter</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-palette paint-logo-icon"></i>
+                <h1>Artify<span>CV</span></h1>
+            </div>
+            <p class="subtitle">Turn your photos into fine art using computer vision</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Sidebar: Controls -->
+            <section class="controls-panel" id="controls-panel">
+                <!-- Step 1: Upload -->
+                <div class="card upload-card" id="upload-card-wrapper">
+                    <h2 class="card-title"><span class="step-num">1</span> Upload Image</h2>
+                    <div class="drag-drop-zone" id="drop-zone">
+                        <input type="file" id="image-input" accept="image/*" class="file-input">
+                        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                        <p class="drag-text">Drag and drop your photo here</p>
+                        <p class="or-text">or</p>
+                        <button type="button" class="btn btn-secondary btn-sm" id="browse-btn">Browse Files</button>
+                        <p class="file-limits">Supports JPG, PNG (Max 16MB)</p>
+                    </div>
+                    <div class="upload-preview-container hidden" id="upload-preview-container">
+                        <div class="file-info">
+                            <i class="fa-regular fa-image file-icon"></i>
+                            <div class="file-details">
+                                <span class="file-name" id="preview-file-name">filename.jpg</span>
+                                <span class="file-size" id="preview-file-size">0.0 MB</span>
+                            </div>
+                            <button type="button" class="btn-icon" id="remove-img-btn" title="Remove image">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Styling Preferences (Only shown when image uploaded) -->
+                <div class="card style-card disabled-card" id="style-card-wrapper">
+                    <h2 class="card-title"><span class="step-num">2</span> Select Painting Style</h2>
+                    
+                    <div class="style-grid">
+                        <div class="style-option active" data-style="watercolor" id="style-opt-watercolor">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-droplet"></i></div>
+                            <span>Watercolor</span>
+                        </div>
+                        <div class="style-option" data-style="oil" id="style-opt-oil">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-brush"></i></div>
+                            <span>Oil Painting</span>
+                        </div>
+                        <div class="style-option" data-style="cartoon" id="style-opt-cartoon">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-masks-theater"></i></div>
+                            <span>Cartoon</span>
+                        </div>
+                        <div class="style-option" data-style="palette_knife" id="style-opt-palette">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-fill-drip"></i></div>
+                            <span>Palette Knife</span>
+                        </div>
+                        <div class="style-option" data-style="pencil_color" id="style-opt-pencil-col">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-pencil"></i></div>
+                            <span>Color Sketch</span>
+                        </div>
+                        <div class="style-option" data-style="pencil_gray" id="style-opt-pencil-gray">
+                            <div class="style-icon-wrapper"><i class="fa-solid fa-pen-nib"></i></div>
+                            <span>Pencil Sketch</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Style Parameters -->
+                    <div class="parameters-section">
+                        <h3 class="section-subtitle">Style Parameters</h3>
+                        
+                        <!-- Parameter 1 (Brush Size / Sigma S) -->
+                        <div class="slider-group" id="param-group-1">
+                            <div class="slider-label">
+                                <span id="param-label-1">Brush Size</span>
+                                <span class="slider-val" id="param-val-1">60</span>
+                            </div>
+                            <input type="range" class="slider" id="param-slider-1" min="1" max="200" value="60">
+                        </div>
+
+                        <!-- Parameter 2 (Smoothing / Sigma R) -->
+                        <div class="slider-group" id="param-group-2">
+                            <div class="slider-label">
+                                <span id="param-label-2">Smoothing</span>
+                                <span class="slider-val" id="param-val-2">0.3</span>
+                            </div>
+                            <input type="range" class="slider" id="param-slider-2" min="0.05" max="1" step="0.05" value="0.3">
+                        </div>
+
+                        <!-- Parameter 3 (Optional: Shade Factor etc) -->
+                        <div class="slider-group hidden" id="param-group-3">
+                            <div class="slider-label">
+                                <span id="param-label-3">Shade Level</span>
+                                <span class="slider-val" id="param-val-3">0.03</span>
+                            </div>
+                            <input type="range" class="slider" id="param-slider-3" min="0.01" max="0.1" step="0.01" value="0.03">
+                        </div>
+                    </div>
+
+                    <!-- General adjustments -->
+                    <div class="adjustments-section">
+                        <h3 class="section-subtitle">Image Enhancements</h3>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Brightness</span>
+                                <span class="slider-val" id="brightness-val">0</span>
+                            </div>
+                            <input type="range" class="slider" id="brightness-slider" min="-100" max="100" value="0">
+                        </div>
+
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Contrast</span>
+                                <span class="slider-val" id="contrast-val">0</span>
+                            </div>
+                            <input type="range" class="slider" id="contrast-slider" min="-100" max="100" value="0">
+                        </div>
+                    </div>
+
+                    <!-- Render Button -->
+                    <button type="button" class="btn btn-primary btn-block" id="render-btn" disabled>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Render Painting
+                    </button>
+                </div>
+            </section>
+
+            <!-- Viewport: Before/After Slider -->
+            <section class="viewport-panel">
+                <div class="card viewport-card">
+                    <!-- Empty State -->
+                    <div class="viewport-empty" id="viewport-empty">
+                        <div class="empty-illustrations">
+                            <i class="fa-solid fa-image empty-icon-bg"></i>
+                            <i class="fa-solid fa-arrow-right empty-arrow"></i>
+                            <i class="fa-solid fa-palette empty-icon-bg highlight"></i>
+                        </div>
+                        <h3>No Image Uploaded</h3>
+                        <p>Upload a real-world photo using the controls panel to see it transformed into a gorgeous painting.</p>
+                    </div>
+
+                    <!-- Image Display (Hidden initially) -->
+                    <div class="viewport-display hidden" id="viewport-display">
+                        <!-- Before & After Comparison Container -->
+                        <div class="comparison-container" id="comparison-container">
+                            <!-- Processed Image (Painting - Bottom Layer) -->
+                            <img src="" alt="Painting preview" class="comparison-image processed-img" id="processed-image" draggability="false">
+                            
+                            <!-- Original Image (Top Layer, clipped) -->
+                            <div class="original-image-wrapper" id="original-image-wrapper">
+                                <img src="" alt="Original upload" class="comparison-image original-img" id="original-image" draggability="false">
+                            </div>
+
+                            <!-- Slider Divider Handle -->
+                            <div class="comparison-slider-handle" id="slider-handle">
+                                <div class="slider-line"></div>
+                                <div class="slider-button">
+                                    <i class="fa-solid fa-arrows-left-right"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Zoom / Legend details -->
+                        <div class="viewport-footer">
+                            <span class="badge badge-left">Original Image</span>
+                            <div class="viewport-actions">
+                                <button type="button" class="btn btn-secondary" id="reset-params-btn">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset
+                                </button>
+                                <a href="#" class="btn btn-accent" id="download-btn" download="my_painting.jpg">
+                                    <i class="fa-solid fa-download"></i> Download Painting
+                                </a>
+                            </div>
+                            <span class="badge badge-right">Digital Painting</span>
+                        </div>
+                    </div>
+
+                    <!-- Loading Overlay -->
+                    <div class="loading-overlay hidden" id="loading-overlay">
+                        <div class="spinner-container">
+                            <div class="spinner"></div>
+                            <div class="paint-drops">
+                                <div class="drop d1"></div>
+                                <div class="drop d2"></div>
+                                <div class="drop d3"></div>
+                            </div>
+                        </div>
+                        <h4 id="loading-status-text">Mixing pigments...</h4>
+                        <p class="loading-subtext">This can take a few seconds depending on the image resolution.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 ArtifyCV. Powered by OpenCV & Python.</p>
+        </footer>
+    </div>
+
+    <!-- Script Resource -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

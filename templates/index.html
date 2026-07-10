@@ -30,17 +30,97 @@
         <main class="app-main">
             <!-- Sidebar: Controls -->
             <section class="controls-panel" id="controls-panel">
-                <!-- Step 1: Upload -->
+                <!-- Step 1: Upload & Camera Capture -->
                 <div class="card upload-card" id="upload-card-wrapper">
-                    <h2 class="card-title"><span class="step-num">1</span> Upload Image</h2>
-                    <div class="drag-drop-zone" id="drop-zone">
-                        <input type="file" id="image-input" accept="image/*" class="file-input">
-                        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-                        <p class="drag-text">Drag and drop your photo here</p>
-                        <p class="or-text">or</p>
-                        <button type="button" class="btn btn-secondary btn-sm" id="browse-btn">Browse Files</button>
-                        <p class="file-limits">Supports JPG, PNG (Max 16MB)</p>
+                    <h2 class="card-title"><span class="step-num">1</span> Image Source</h2>
+                    
+                    <div class="card-tabs" id="image-source-tabs">
+                        <button type="button" class="tab-btn active" id="tab-btn-upload">
+                            <i class="fa-solid fa-file-arrow-up"></i> Upload
+                        </button>
+                        <button type="button" class="tab-btn" id="tab-btn-camera">
+                            <i class="fa-solid fa-camera"></i> Camera
+                        </button>
+                        <button type="button" class="tab-btn" id="tab-btn-ai">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI Generate
+                        </button>
                     </div>
+
+                    <!-- Tab Content: File Upload -->
+                    <div class="tab-content" id="tab-content-upload">
+                        <div class="drag-drop-zone" id="drop-zone">
+                            <input type="file" id="image-input" accept="image/*" class="file-input">
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                            <p class="drag-text">Drag and drop your photo here</p>
+                            <p class="or-text">or</p>
+                            <button type="button" class="btn btn-secondary btn-sm" id="browse-btn">Browse Files</button>
+                            <p class="file-limits">Supports JPG, PNG (Max 16MB)</p>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content: Live Camera Capture -->
+                    <div class="tab-content hidden" id="tab-content-camera">
+                        <div class="camera-stream-container">
+                            <video id="webcam-video" autoplay playsinline muted class="webcam-video"></video>
+                            <canvas id="camera-canvas" class="hidden"></canvas>
+                            <div class="camera-overlay">
+                                <div class="camera-grid hidden" id="camera-grid">
+                                    <div class="grid-line horizontal-1"></div>
+                                    <div class="grid-line horizontal-2"></div>
+                                    <div class="grid-line vertical-1"></div>
+                                    <div class="grid-line vertical-2"></div>
+                                </div>
+                                <div class="countdown-overlay hidden" id="countdown-overlay">
+                                    <span class="countdown-number" id="countdown-number">3</span>
+                                </div>
+                                <div class="camera-status" id="camera-status">Initializing webcam...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="camera-controls">
+                            <div class="device-select-row">
+                                <select id="camera-select" class="camera-select-dropdown">
+                                    <option value="">Detecting cameras...</option>
+                                </select>
+                                <button type="button" class="btn-icon camera-tool-btn" id="grid-toggle-btn" title="Toggle Grid Overlay">
+                                    <i class="fa-solid fa-border-all"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="timer-select-row">
+                                <span class="timer-label"><i class="fa-regular fa-clock"></i> Timer:</span>
+                                <div class="timer-options">
+                                    <button type="button" class="timer-btn active" data-time="0">Off</button>
+                                    <button type="button" class="timer-btn" data-time="3">3s</button>
+                                    <button type="button" class="timer-btn" data-time="5">5s</button>
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary btn-block" id="capture-btn" disabled>
+                                <i class="fa-solid fa-circle"></i> Capture Photo
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content: AI Image Generation -->
+                    <div class="tab-content hidden" id="tab-content-ai">
+                        <div class="ai-generator-container">
+                            <label for="ai-prompt-input" class="form-label" style="display: block; margin-bottom: 6px; font-size: 13px; color: rgba(255, 255, 255, 0.7);">Describe your painting concept:</label>
+                            <textarea id="ai-prompt-input" class="form-textarea" placeholder="A rustic cabin in an autumn forest next to a crystal clear lake, watercolor style, soft evening light..."></textarea>
+                            
+                            <div class="prompt-suggestions">
+                                <span class="suggestion-tag">Cosmic owl oil painting</span>
+                                <span class="suggestion-tag">Cyberpunk street on a rainy night</span>
+                                <span class="suggestion-tag">Sunflowers in a glass vase</span>
+                            </div>
+                            
+                            <button type="button" class="btn btn-accent btn-block" id="ai-generate-btn">
+                                <i class="fa-solid fa-gears"></i> Generate Base Image
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Shared Upload/Capture Preview Details -->
                     <div class="upload-preview-container hidden" id="upload-preview-container">
                         <div class="file-info">
                             <i class="fa-regular fa-image file-icon"></i>

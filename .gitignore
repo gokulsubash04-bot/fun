@@ -1,0 +1,34 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local uploads and processed images
+static/images/orig_*
+static/images/proc_*
+static/images/captured_photo*
+
+# Live Sketch Booth Captures
+captures/
+
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

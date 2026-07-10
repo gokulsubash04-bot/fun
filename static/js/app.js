@@ -3,6 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFileId = null;
     let currentStyle = 'watercolor';
     let isDraggingSlider = false;
+    let localStream = null;
+    let captureTimerVal = 0;
+    let isCameraGridActive = false;
+    let activeSourceTab = 'upload'; // 'upload' or 'camera'
 
     // --- DOM Selectors ---
     const dropZone = document.getElementById('drop-zone');
@@ -16,6 +20,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderBtn = document.getElementById('render-btn');
     const resetParamsBtn = document.getElementById('reset-params-btn');
     const downloadBtn = document.getElementById('download-btn');
+    
+    // Tab navigation and camera selectors
+    const imageSourceTabs = document.getElementById('image-source-tabs');
+    const tabBtnUpload = document.getElementById('tab-btn-upload');
+    const tabBtnCamera = document.getElementById('tab-btn-camera');
+    const tabContentUpload = document.getElementById('tab-content-upload');
+    const tabContentCamera = document.getElementById('tab-content-camera');
+    const webcamVideo = document.getElementById('webcam-video');
+    const cameraCanvas = document.getElementById('camera-canvas');
+    const cameraGrid = document.getElementById('camera-grid');
+    const countdownOverlay = document.getElementById('countdown-overlay');
+    const countdownNumber = document.getElementById('countdown-number');
+    const cameraStatus = document.getElementById('camera-status');
+    const cameraSelect = document.getElementById('camera-select');
+    const gridToggleBtn = document.getElementById('grid-toggle-btn');
+    const captureBtn = document.getElementById('capture-btn');
+    const timerBtns = document.querySelectorAll('.timer-btn');
+    
+    // AI Generate selectors
+    const tabBtnAi = document.getElementById('tab-btn-ai');
+    const tabContentAi = document.getElementById('tab-content-ai');
+    const aiPromptInput = document.getElementById('ai-prompt-input');
+    const aiGenerateBtn = document.getElementById('ai-generate-btn');
+    const suggestionTags = document.querySelectorAll('.suggestion-tag');
     
     const styleOptions = document.querySelectorAll('.style-option');
     const brightnessSlider = document.getElementById('brightness-slider');
@@ -55,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Loading Status Messages ---
     const loadingPhrases = {
         'upload': ['Scanning photo details...', 'Stretching the digital canvas...', 'Preparing paint brushes...'],
+        'ai': ['Prompting Gemini model...', 'Synthesizing pixels in imagination...', 'Coaxing AI neural network...', 'Refining image details...'],
         'watercolor': ['Mixing water and pigments...', 'Applying light washes...', 'Creating paint bleeds...', 'Smoothing edges...'],
         'oil': ['Squeezing oil tubes...', 'Layering heavy brush strokes...', 'Enhancing textures...', 'Waiting for paint to dry...'],
         'cartoon': ['Tracing key outlines...', 'Applying flat color cells...', 'Boosting color contrast...', 'Polishing shading...'],
@@ -190,6 +219,269 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Webcam Capture Lifecycle & Helpers ---
+    async function startWebcam() {
+        if (localStream) {
+            stopWebcam();
+        }
+        
+        cameraStatus.textContent = 'Requesting camera access...';
+        captureBtn.disabled = true;
+        
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            },
+            audio: false
+        };
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            localStream = stream;
+            webcamVideo.srcObject = stream;
+            cameraStatus.textContent = 'Camera live';
+            captureBtn.disabled = false;
+            
+            // Query for video devices
+            enumerateCameras();
+        } catch (err) {
+            console.error('Error accessing webcam:', err);
+            cameraStatus.textContent = 'Webcam unavailable or blocked';
+            alert('Unable to access webcam. Please check browser permissions and try again.');
+        }
+    }
+
+    function stopWebcam() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        webcamVideo.srcObject = null;
+        cameraStatus.textContent = 'Camera is off';
+        captureBtn.disabled = true;
+    }
+
+    async function enumerateCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            
+            cameraSelect.innerHTML = '';
+            
+            if (videoDevices.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No cameras detected';
+                cameraSelect.appendChild(opt);
+                return;
+            }
+            
+            videoDevices.forEach((device, index) => {
+                const opt = document.createElement('option');
+                opt.value = device.deviceId;
+                opt.textContent = device.label || `Camera ${index + 1}`;
+                
+                // Select currently running track if label matches
+                if (localStream) {
+                    const activeTrack = localStream.getVideoTracks()[0];
+                    if (activeTrack && activeTrack.label === device.label) {
+                        opt.selected = true;
+                    }
+                }
+                
+                cameraSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Error enumerating cameras:', err);
+        }
+    }
+
+    async function switchCamera(deviceId) {
+        if (!deviceId) return;
+        
+        stopWebcam();
+        cameraStatus.textContent = 'Switching cameras...';
+        
+        const constraints = {
+            video: {
+                deviceId: { exact: deviceId }
+            },
+            audio: false
+        };
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            localStream = stream;
+            webcamVideo.srcObject = stream;
+            cameraStatus.textContent = 'Camera live';
+            captureBtn.disabled = false;
+        } catch (err) {
+            console.error('Error switching camera device:', err);
+            cameraStatus.textContent = 'Failed to load camera';
+        }
+    }
+
+    function playShutterSound() {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const bufferSize = audioCtx.sampleRate * 0.15;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            // Synthesize white noise for camera click/shutter mechanical sound
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 1000;
+            filter.Q.value = 1.8;
+            
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            noise.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            noise.start();
+        } catch (e) {
+            console.warn('Synthesizer audio blocked or unsupported:', e);
+        }
+    }
+
+    function triggerShutterFlash() {
+        const streamContainer = document.querySelector('.camera-stream-container');
+        streamContainer.classList.remove('camera-flash');
+        void streamContainer.offsetWidth; // force reflow
+        streamContainer.classList.add('camera-flash');
+        
+        playShutterSound();
+        
+        setTimeout(() => {
+            streamContainer.classList.remove('camera-flash');
+        }, 300);
+    }
+
+    function captureImage() {
+        if (!localStream || !webcamVideo.videoWidth) return;
+        
+        triggerShutterFlash();
+        
+        const canvas = cameraCanvas;
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = webcamVideo.videoWidth;
+        canvas.height = webcamVideo.videoHeight;
+        
+        // Match the mirrored preview by flipping horizontal axis
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(webcamVideo, 0, 0, canvas.width, canvas.height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // restore
+        
+        canvas.toBlob((blob) => {
+            if (blob) {
+                stopWebcam();
+                handleFileUpload(blob);
+            }
+        }, 'image/jpeg', 0.95);
+    }
+
+    function startCountdownAndCapture() {
+        if (captureTimerVal === 0) {
+            captureImage();
+            return;
+        }
+        
+        captureBtn.disabled = true;
+        countdownOverlay.classList.remove('hidden');
+        
+        let remaining = captureTimerVal;
+        countdownNumber.textContent = remaining;
+        
+        const interval = setInterval(() => {
+            remaining--;
+            if (remaining > 0) {
+                countdownNumber.textContent = remaining;
+            } else {
+                clearInterval(interval);
+                countdownOverlay.classList.add('hidden');
+                captureImage();
+            }
+        }, 1000);
+    }
+
+    // --- Tab Switching & Camera Listeners ---
+    function switchSourceTab(tabName) {
+        if (activeSourceTab === tabName) return;
+        activeSourceTab = tabName;
+
+        tabBtnUpload.classList.toggle('active', tabName === 'upload');
+        tabBtnCamera.classList.toggle('active', tabName === 'camera');
+        tabBtnAi.classList.toggle('active', tabName === 'ai');
+
+        tabContentUpload.classList.toggle('hidden', tabName !== 'upload');
+        tabContentCamera.classList.toggle('hidden', tabName !== 'camera');
+        tabContentAi.classList.toggle('hidden', tabName !== 'ai');
+
+        if (tabName === 'camera') {
+            startWebcam();
+        } else {
+            stopWebcam();
+        }
+    }
+
+    tabBtnUpload.addEventListener('click', () => switchSourceTab('upload'));
+    tabBtnCamera.addEventListener('click', () => switchSourceTab('camera'));
+    tabBtnAi.addEventListener('click', () => switchSourceTab('ai'));
+
+    // Hook suggestion tags click
+    suggestionTags.forEach(tag => {
+        tag.addEventListener('click', () => {
+            aiPromptInput.value = tag.textContent;
+        });
+    });
+
+    // Hook AI generation trigger
+    aiGenerateBtn.addEventListener('click', () => {
+        handleAIGeneration(aiPromptInput.value);
+    });
+
+    cameraSelect.addEventListener('change', (e) => {
+        switchCamera(e.target.value);
+    });
+
+    gridToggleBtn.addEventListener('click', () => {
+        isCameraGridActive = !isCameraGridActive;
+        if (isCameraGridActive) {
+            gridToggleBtn.classList.add('active');
+            cameraGrid.classList.remove('hidden');
+        } else {
+            gridToggleBtn.classList.remove('active');
+            cameraGrid.classList.add('hidden');
+        }
+    });
+
+    timerBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            timerBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            captureTimerVal = parseInt(btn.dataset.time, 10);
+        });
+    });
+
+    captureBtn.addEventListener('click', () => {
+        startCountdownAndCapture();
+    });
+
     // --- File Drag & Drop Actions ---
     browseBtn.addEventListener('click', () => imageInput.click());
 
@@ -222,7 +514,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset view states
         uploadPreviewContainer.classList.add('hidden');
-        dropZone.classList.remove('hidden');
+        imageSourceTabs.classList.remove('hidden');
+        
+        if (activeSourceTab === 'upload') {
+            tabContentUpload.classList.remove('hidden');
+        } else if (activeSourceTab === 'camera') {
+            tabContentCamera.classList.remove('hidden');
+            startWebcam();
+        } else if (activeSourceTab === 'ai') {
+            tabContentAi.classList.remove('hidden');
+        }
+        
         styleCardWrapper.classList.add('disabled-card');
         renderBtn.disabled = true;
         
@@ -232,15 +534,22 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadBtn.removeAttribute('href');
     });
 
-    // --- File Upload API communication ---
+    // --- File Upload API Communication ---
     function handleFileUpload(file) {
-        if (!file.type.match('image.*')) {
+        const isBlob = !(file instanceof File);
+        const mimeType = file.type || 'image/jpeg';
+        
+        if (!mimeType.match('image.*')) {
             alert('Please select a valid image file (JPG, PNG).');
             return;
         }
 
         const formData = new FormData();
-        formData.append('image', file);
+        if (isBlob) {
+            formData.append('image', file, 'captured_photo.jpg');
+        } else {
+            formData.append('image', file);
+        }
 
         // Show uploading state
         loadingOverlay.classList.remove('hidden');
@@ -260,11 +569,79 @@ document.addEventListener('DOMContentLoaded', () => {
             currentFileId = data.file_id;
             
             // Set details in preview panel
-            previewFileName.textContent = file.name;
+            previewFileName.textContent = file.name || 'captured_photo.jpg';
             const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
             previewFileSize.textContent = `${sizeMB} MB`;
             
-            dropZone.classList.add('hidden');
+            imageSourceTabs.classList.add('hidden');
+            tabContentUpload.classList.add('hidden');
+            tabContentCamera.classList.add('hidden');
+            tabContentAi.classList.add('hidden');
+            uploadPreviewContainer.classList.remove('hidden');
+            
+            // Enable Style card and Render button
+            styleCardWrapper.classList.remove('disabled-card');
+            renderBtn.disabled = false;
+            
+            // Set sources for display
+            originalImage.src = data.original_url;
+            processedImage.src = data.original_url; // Default to original before rendering
+            
+            // Switch viewports
+            viewportEmpty.classList.add('hidden');
+            viewportDisplay.classList.remove('hidden');
+            
+            // Reset position slider
+            setSliderPosition(50);
+            
+            // Wait for image loading to sync dimensions
+            processedImage.onload = () => {
+                syncImageSizes();
+                stopLoadingMessages();
+                loadingOverlay.classList.add('hidden');
+                
+                // Automatically perform initial rendering
+                processImage();
+            };
+        })
+        .catch(err => {
+            stopLoadingMessages();
+            loadingOverlay.classList.add('hidden');
+            alert(`Error: ${err.message}`);
+        });
+    }
+
+    function handleAIGeneration(prompt) {
+        if (!prompt.trim()) {
+            alert('Please enter a description for your painting concept.');
+            return;
+        }
+
+        loadingOverlay.classList.remove('hidden');
+        startLoadingMessages('ai');
+
+        fetch('/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Generation failed'); });
+            }
+            return response.json();
+        })
+        .then(data => {
+            currentFileId = data.file_id;
+            
+            // Set details in preview panel
+            previewFileName.textContent = `ai_concept_${currentFileId.substring(0, 8)}.jpg`;
+            previewFileSize.textContent = `AI Generated`;
+            
+            imageSourceTabs.classList.add('hidden');
+            tabContentUpload.classList.add('hidden');
+            tabContentCamera.classList.add('hidden');
+            tabContentAi.classList.add('hidden');
             uploadPreviewContainer.classList.remove('hidden');
             
             // Enable Style card and Render button
@@ -319,6 +696,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentFileId) return;
 
         loadingOverlay.classList.remove('hidden');
+        
+
         startLoadingMessages(currentStyle.includes('pencil') ? 'pencil' : currentStyle);
 
         // Gather payloads

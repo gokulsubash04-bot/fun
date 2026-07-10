@@ -159,6 +159,85 @@ def process_image():
     except Exception as e:
         return jsonify({'error': f'Image processing failed: {str(e)}'}), 500
 
+@app.route('/generate', methods=['POST'])
+def generate_image_ai():
+    cleanup_old_files()
+    
+    data = request.json or {}
+    prompt = data.get('prompt')
+    if not prompt:
+        return jsonify({'error': 'Prompt is required'}), 400
+        
+    # Retrieve API Key
+    api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
+    if not api_key:
+        return jsonify({
+            'error': 'GEMINI_API_KEY environment variable is not set. Please configure it to enable AI image generation.'
+        }), 400
+        
+    try:
+        from google import genai
+        from google.genai import types
+        
+        client = genai.Client(api_key=api_key)
+        file_id = str(uuid.uuid4())
+        original_filename = f"orig_{file_id}.jpg"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], original_filename)
+        
+        # Try the latest recommended model gemini-2.5-flash-image
+        try:
+            print("Attempting to generate image using gemini-2.5-flash-image...")
+            response = client.models.generate_content(
+                model='gemini-2.5-flash-image',
+                contents=prompt
+            )
+            image_data = None
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data:
+                        image_data = part.inline_data.data
+                        break
+            
+            if image_data:
+                with open(filepath, 'wb') as f:
+                    f.write(image_data)
+            else:
+                raise Exception("No inline image data found in response candidates.")
+                
+        except Exception as e:
+            # Fallback to imagen-3.0-generate-002
+            print(f"Primary model gemini-2.5-flash-image failed: {e}. Trying fallback model imagen-3.0-generate-002...")
+            response = client.models.generate_images(
+                model='imagen-3.0-generate-002',
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    output_mime_type='image/jpeg'
+                )
+            )
+            if response.generated_images:
+                response.generated_images[0].image.save(filepath)
+            else:
+                raise Exception("Fallback image generation returned empty results.")
+
+        # Read dimensions of the generated image
+        img = cv2.imread(filepath)
+        if img is None:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': 'Generated image is invalid or empty'}), 500
+            
+        return jsonify({
+            'file_id': file_id,
+            'original_url': url_for('static', filename=f"images/{original_filename}"),
+            'width': img.shape[1],
+            'height': img.shape[0]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'AI Image generation failed: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     # Make sure static directory exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
